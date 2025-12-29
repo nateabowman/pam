@@ -2,11 +2,12 @@
 FastAPI application for World P.A.M.
 """
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from api.routes import scenarios, signals
 from api.auth import verify_api_key
+from api.websocket import websocket_endpoint
 from health import get_health
 import os
 
@@ -45,6 +46,12 @@ async def root():
 async def health_check():
     """Health check endpoint (no auth required)."""
     return get_health()
+
+
+@app.websocket("/ws")
+async def websocket_route(websocket: WebSocket):
+    """WebSocket endpoint for real-time updates."""
+    await websocket_endpoint(websocket)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)

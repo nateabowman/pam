@@ -31,6 +31,8 @@ from health import get_health
 from cache import get_config_cache, cached
 from fetcher import fetch_feeds_parallel, FetchResult
 from database import Database
+from async_fetcher import AsyncFetcher, fetch_feeds_async
+from async_database import AsyncDatabase
 
 # ---------- math helpers ----------
 def sigmoid(x: float) -> float:
@@ -134,7 +136,7 @@ def normalized_keyword_hits(items: List[Dict[str, Any]], keywords: List[str], wi
 
 # ---------- main engine ----------
 class WorldPAM:
-    def __init__(self, cfg: Config, db_path: Optional[str] = None):
+    def __init__(self, cfg: Config, db_path: Optional[str] = None, use_async: bool = False):
         self.cfg = cfg
         self.sources = {s.name: s for s in cfg.sources}
         self.signals = {s.name: s for s in cfg.signals}
@@ -142,7 +144,9 @@ class WorldPAM:
         # Build allowed netlocs whitelist for security
         self.allowed_netlocs = get_allowed_netlocs_from_config(cfg.sources)
         # Initialize database if path provided
-        self.db = Database(db_path) if db_path else None
+        self.db = Database(db_path) if db_path and not use_async else None
+        self.async_db = AsyncDatabase(db_path) if db_path and use_async else None
+        self.use_async = use_async
 
     def compute_signal(self, sig_name: str, country: Optional[str] = None) -> float:
         bind = self.cfg.signal_bindings.get(sig_name, {})
@@ -239,6 +243,113 @@ class WorldPAM:
         # Store evaluation in database
         if self.db:
             self.db.store_hypothesis_evaluation(
+                hypothesis_name=hyp_name,
+                probability=p,
+                country=country,
+                monte_carlo_mean=mean,
+                monte_carlo_low=ci[0] if ci else None,
+                monte_carlo_high=ci[1] if ci else None
+            )
+        
+        return p, mean, ci, details
+    
+    async def compute_signal_async(self, sig_name: str, country: Optional[str] = None) -> float:
+        """Async version of compute_signal."""
+        bind = self.cfg.signal_bindings.get(sig_name, {})
+        srcs = bind.get("sources", [])
+        kw_sets = bind.get("keywords", [])
+        window_days = int(bind.get("window_days", 7))
+        
+        keywords = []
+        for s in kw_sets:
+            keywords += self.cfg.keyword_sets.get(s, [])
+        if country:
+            keywords.append(country)
+        
+        vals = []
+        logger = get_logger("signal")
+        
+        # Prepare sources for async fetching
+        source_list = [
+            (src_name, self.sources[src_name].url, self.sources[src_name].timeout)
+            for src_name in srcs
+        ]
+        
+        # Fetch all feeds asynchronously
+        fetch_results = await fetch_feeds_async(
+            source_list,
+            allowed_netlocs=self.allowed_netlocs,
+            max_concurrent=10
+        )
+        
+        # Process results
+        for src_name in srcs:
+            result = fetch_results.get(src_name)
+            if result and result.success and result.data:
+                items = parse_feed_bytes(self.sources[src_name].type, result.data)
+                
+                # Store feed items in database
+                if self.async_db:
+                    for item in items:
+                        await self.async_db.store_feed_item(
+                            source_name=src_name,
+                            url=self.sources[src_name].url,
+                            title=item.get("title", ""),
+                            summary=item.get("summary", ""),
+                            published=item.get("published")
+                        )
+                    await self.async_db.update_source_status(src_name, success=True)
+                
+                vals.append(normalized_keyword_hits(items, keywords, window_days=window_days))
+            else:
+                logger.warning(f"Failed to fetch or parse feed from {src_name}")
+                if self.async_db:
+                    error_msg = result.error if result else "Unknown error"
+                    await self.async_db.update_source_status(src_name, success=False, error=error_msg)
+                vals.append(0.0)
+        
+        # Store signal value in database
+        if self.async_db and vals:
+            final_val = max(vals) if self.signals[sig_name].aggregation == "max" else sum(vals)
+            final_val = min(final_val, self.signals[sig_name].cap)
+            await self.async_db.store_signal_value(sig_name, final_val, country=country, window_days=window_days)
+        
+        if not vals:
+            return 0.0
+        sig = self.signals[sig_name]
+        val = max(vals) if sig.aggregation == "max" else sum(vals)
+        return min(val, sig.cap)
+    
+    async def evaluate_async(self, hyp_name: str, country: Optional[str] = None, simulate: int = 0):
+        """Async version of evaluate."""
+        hyp = self.hyps[hyp_name]
+        z = logit(hyp.prior)
+        details = []
+        for s in hyp.signals:
+            val = await self.compute_signal_async(s, country)
+            weight = self.signals[s].weight
+            z += weight * val
+            details.append((s, val, weight))
+        p = sigmoid(z)
+        
+        mean = None
+        ci = None
+        
+        if simulate:
+            sims = []
+            for _ in range(simulate):
+                z2 = logit(hyp.prior)
+                for s, val, w in details:
+                    v = 1.0 if random.random() < val else 0.0
+                    z2 += w * v
+                sims.append(sigmoid(z2))
+            sims.sort()
+            mean = sum(sims) / len(sims)
+            ci = (sims[int(0.05*simulate)], sims[int(0.95*simulate)])
+        
+        # Store evaluation in database
+        if self.async_db:
+            await self.async_db.store_hypothesis_evaluation(
                 hypothesis_name=hyp_name,
                 probability=p,
                 country=country,
