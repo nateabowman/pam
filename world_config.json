@@ -1,0 +1,91 @@
+{
+  "sources": [
+    {"name": "reuters_world", "url": "https://feeds.reuters.com/reuters/worldNews", "type": "rss", "timeout": 10},
+    {"name": "ap_top", "url": "https://feeds.apnews.com/apf-topnews", "type": "rss", "timeout": 10},
+    {"name": "bbc_world", "url": "http://feeds.bbci.co.uk/news/world/rss.xml", "type": "rss", "timeout": 10},
+    {"name": "nato_news", "url": "https://www.nato.int/cps/en/natohq/news.htm?&format=xml", "type": "rss", "timeout": 10},
+    {"name": "un_news", "url": "https://news.un.org/feed/subscribe/en/news/all/rss.xml", "type": "rss", "timeout": 10},
+    {"name": "iaea_news", "url": "https://www.iaea.org/rss/news", "type": "rss", "timeout": 10},
+    {"name": "aljazeera", "url": "https://www.aljazeera.com/xml/rss/all.xml", "type": "rss", "timeout": 10},
+    {"name": "dw_world", "url": "https://www.dw.com/en/rss", "type": "rss", "timeout": 10}
+  ],
+
+  "signals": [
+    {"name": "mobilization_indicators", "weight": 1.9, "description": "Reports of mobilization, troop movement, conscription", "aggregation": "sum", "cap": 1.0},
+    {"name": "border_clashes", "weight": 2.4, "description": "Skirmishes, shelling, strikes", "aggregation": "sum", "cap": 1.0},
+    {"name": "diplomatic_breakdown", "weight": 1.6, "description": "Sanctions, expulsions, failed talks", "aggregation": "sum", "cap": 1.0},
+    {"name": "deescalation_signals", "weight": -1.5, "description": "Ceasefires, peace talks", "aggregation": "sum", "cap": 1.0},
+
+    {"name": "domestic_unrest", "weight": 2.0, "description": "Protests, riots, strikes", "aggregation": "sum", "cap": 1.0},
+    {"name": "coup_rumors", "weight": 2.2, "description": "Coup attempts, martial law", "aggregation": "sum", "cap": 1.0},
+    {"name": "state_repression", "weight": 1.5, "description": "Crackdowns, curfews, mass arrests", "aggregation": "sum", "cap": 1.0},
+    {"name": "power_sharing", "weight": -1.3, "description": "Coalitions, unity governments", "aggregation": "sum", "cap": 1.0},
+
+    {"name": "nuclear_testing_talk", "weight": 2.6, "description": "ICBM tests, nuclear rhetoric", "aggregation": "max", "cap": 1.0},
+    {"name": "energy_nuclear_incident", "weight": 0.8, "description": "Civil nuclear incidents", "aggregation": "sum", "cap": 0.8},
+    {"name": "dealerting_confidence", "weight": -1.8, "description": "Arms control, treaties", "aggregation": "max", "cap": 1.0},
+
+    {"name": "economic_instability", "weight": 1.8, "description": "Market crashes, inflation, defaults", "aggregation": "sum", "cap": 1.0},
+    {"name": "food_security", "weight": 1.6, "description": "Famine, food shortage, crop failure", "aggregation": "sum", "cap": 1.0},
+    {"name": "health_emergency", "weight": 2.0, "description": "Outbreaks, pandemics, WHO alerts", "aggregation": "sum", "cap": 1.0},
+    {"name": "natural_disaster", "weight": 1.5, "description": "Earthquake, flood, hurricane", "aggregation": "sum", "cap": 1.0}
+  ],
+
+  "hypotheses": [
+    {"name": "global_war_risk", "prior": 0.05, "signals": ["mobilization_indicators", "border_clashes", "diplomatic_breakdown", "deescalation_signals"]},
+    {"name": "regional_conflict_asia", "prior": 0.04, "signals": ["mobilization_indicators", "border_clashes", "diplomatic_breakdown", "deescalation_signals"]},
+    {"name": "regional_conflict_europe", "prior": 0.04, "signals": ["mobilization_indicators", "border_clashes", "diplomatic_breakdown", "deescalation_signals"]},
+    {"name": "regional_conflict_middleeast", "prior": 0.05, "signals": ["mobilization_indicators", "border_clashes", "diplomatic_breakdown", "deescalation_signals"]},
+
+    {"name": "civil_war_risk", "prior": 0.07, "signals": ["domestic_unrest", "coup_rumors", "state_repression", "power_sharing"]},
+    {"name": "coup_d_etat_risk", "prior": 0.04, "signals": ["coup_rumors", "state_repression", "domestic_unrest", "power_sharing"]},
+    {"name": "mass_protest_risk", "prior": 0.10, "signals": ["domestic_unrest", "state_repression", "power_sharing"]},
+
+    {"name": "government_collapse_risk", "prior": 0.03, "signals": ["diplomatic_breakdown", "domestic_unrest", "power_sharing", "coup_rumors"]},
+    {"name": "state_fragmentation_risk", "prior": 0.02, "signals": ["domestic_unrest", "border_clashes", "power_sharing", "diplomatic_breakdown"]},
+
+    {"name": "nuclear_use_risk", "prior": 0.01, "signals": ["nuclear_testing_talk", "dealerting_confidence", "deescalation_signals"]},
+    {"name": "nuclear_accident_risk", "prior": 0.02, "signals": ["energy_nuclear_incident", "deescalation_signals"]},
+    {"name": "chemical_bio_wmd_risk", "prior": 0.02, "signals": ["nuclear_testing_talk", "diplomatic_breakdown"]},
+
+    {"name": "economic_collapse_risk", "prior": 0.03, "signals": ["economic_instability", "domestic_unrest", "diplomatic_breakdown"]},
+    {"name": "famine_risk", "prior": 0.02, "signals": ["food_security", "state_repression", "deescalation_signals"]},
+    {"name": "pandemic_risk", "prior": 0.01, "signals": ["health_emergency", "state_repression"]},
+    {"name": "natural_disaster_risk", "prior": 0.02, "signals": ["natural_disaster", "deescalation_signals"]}
+  ],
+
+  "keyword_sets": {
+    "mobilization": ["mobilization", "conscription", "call-up", "draft", "reserve forces", "troop movement", "military convoy"],
+    "border": ["border clash", "skirmish", "shelling", "airstrike", "missile strike", "incursion", "artillery"],
+    "diplo_break": ["sanctions", "ambassador expelled", "talks collapse", "ceasefire fails", "breaking off relations"],
+    "deescalate": ["ceasefire", "talks resume", "peace talks", "truce", "de-escalation", "exchange of prisoners"],
+    "unrest": ["protest", "riot", "strike", "mass demonstration", "civil unrest"],
+    "coup": ["coup", "junta", "military takes power", "state of emergency", "martial law"],
+    "repression": ["crackdown", "curfew", "martial law", "security forces", "mass arrests"],
+    "power_sharing": ["coalition", "unity government", "power-sharing", "constitutional reform"],
+    "nuclear_weapons": ["icbm", "ballistic missile", "nuclear test", "warhead", "nuclear strike", "launch"],
+    "nuclear_deescalate": ["de-alert", "arms control", "treaty", "dialogue on strategic stability"],
+    "economic_crisis": ["inflation", "currency collapse", "default", "IMF bailout", "market crash", "recession"],
+    "famine": ["food shortage", "hunger", "crop failure", "famine", "malnutrition"],
+    "pandemic": ["outbreak", "virus", "infection", "epidemic", "pandemic", "WHO alert"],
+    "disaster": ["earthquake", "hurricane", "flood", "wildfire", "tsunami", "eruption"]
+  },
+
+  "signal_bindings": {
+    "mobilization_indicators": {"sources": ["reuters_world", "ap_top", "bbc_world", "aljazeera", "dw_world"], "keywords": ["mobilization"], "window_days": 7},
+    "border_clashes": {"sources": ["reuters_world", "ap_top", "bbc_world", "aljazeera"], "keywords": ["border"], "window_days": 7},
+    "diplomatic_breakdown": {"sources": ["reuters_world", "bbc_world", "dw_world"], "keywords": ["diplo_break"], "window_days": 10},
+    "deescalation_signals": {"sources": ["reuters_world", "bbc_world", "un_news"], "keywords": ["deescalate"], "window_days": 10},
+    "domestic_unrest": {"sources": ["reuters_world", "ap_top", "bbc_world", "aljazeera"], "keywords": ["unrest"], "window_days": 7},
+    "coup_rumors": {"sources": ["reuters_world", "bbc_world", "dw_world"], "keywords": ["coup"], "window_days": 14},
+    "state_repression": {"sources": ["reuters_world", "ap_top", "bbc_world"], "keywords": ["repression"], "window_days": 10},
+    "power_sharing": {"sources": ["reuters_world", "bbc_world", "un_news"], "keywords": ["power_sharing"], "window_days": 21},
+    "nuclear_testing_talk": {"sources": ["reuters_world", "bbc_world", "dw_world"], "keywords": ["nuclear_weapons"], "window_days": 21},
+    "energy_nuclear_incident": {"sources": ["iaea_news"], "keywords": ["nuclear_weapons"], "window_days": 21},
+    "dealerting_confidence": {"sources": ["reuters_world", "bbc_world"], "keywords": ["nuclear_deescalate"], "window_days": 30},
+    "economic_instability": {"sources": ["reuters_world", "ap_top", "bbc_world"], "keywords": ["economic_crisis"], "window_days": 14},
+    "food_security": {"sources": ["reuters_world", "ap_top", "un_news"], "keywords": ["famine"], "window_days": 21},
+    "health_emergency": {"sources": ["reuters_world", "ap_top", "un_news"], "keywords": ["pandemic"], "window_days": 14},
+    "natural_disaster": {"sources": ["reuters_world", "ap_top", "bbc_world"], "keywords": ["disaster"], "window_days": 7}
+  }
+}

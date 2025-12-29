@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  pam-api:
+    build: .
+    container_name: pam-api
+    ports:
+      - "8000:8000"
+    environment:
+      - PAM_CONFIG=world_config.json
+      - PAM_DB_PATH=/app/data/pam_data.db
+      - PAM_API_KEY=${PAM_API_KEY:-changeme}
+      - CORS_ORIGINS=http://localhost:8000,http://localhost:3000
+      - LOG_LEVEL=INFO
+      - LOG_FILE=/app/data/pam.log
+    volumes:
+      - ./world_config.json:/app/world_config.json:ro
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - pam-network
+
+  pam-worker:
+    build: .
+    container_name: pam-worker
+    command: python pam_world.py --run-all
+    environment:
+      - PAM_CONFIG=world_config.json
+      - PAM_DB_PATH=/app/data/pam_data.db
+      - LOG_LEVEL=INFO
+      - LOG_FILE=/app/data/worker.log
+    volumes:
+      - ./world_config.json:/app/world_config.json:ro
+      - ./data:/app/data
+    restart: "no"  # Run once, or use cron
+    networks:
+      - pam-network
+    depends_on:
+      - pam-api
+
+networks:
+  pam-network:
+    driver: bridge
+
